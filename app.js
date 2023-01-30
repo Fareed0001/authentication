@@ -3,7 +3,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption"); //This is for mongoose-encryption to help encrypt data using AES-256-CBC
+const md5 = require("md5");
 
 const app = express();
 
@@ -18,14 +18,6 @@ const userSchema = new mongoose.Schema ({ //This is to change our schema into a 
   email: String,
   password: String
 });
-
-//to encrypt our data "Secret String Instead of Two Keys" from https://www.npmjs.com/package/mongoose-encryption
-const secret = process.env.SECRET; //this is the data you will use to encrypt your database, its value is stored in the .env file
-//by using the schema (userSchema), you add a plugin and pass in the secret as a js object
-userSchema.plugin(encrypt, { secret: secret, encryptedFields: ["password"] }); //NB keep this plugin code above the mongoose model because we are passing the schema in to create the mongoose model so before then we add our encrypt package as a plugin
-//This will encrypt only the password field. from https://www.npmjs.com/package/mongoose-encryption (Encrypt Only Certain Fields)
-//NB the encryptedFields you pass in the string must match the string in your schema
-
 
 //creating a model for the database
 const User = new mongoose.model("User", userSchema);
@@ -54,7 +46,7 @@ app.get("/register", function(req, res) {
 app.post("/register", function(req, res) { //This is to recieve the post request from the register form
   const newUser = new User({ //this follows the user model which follows the user schema
     email: req.body.username, //this will catch whatever the input with the name username contains
-    password: req.body.password //this will catch whatever the input with the name password contains
+    password: md5(req.body.password) //this will hash the password using md5
   });
 
   newUser.save(function(err) { //this will save the new user
@@ -68,7 +60,7 @@ app.post("/register", function(req, res) { //This is to recieve the post request
 
 app.post("/login", function(req, res) { //this route is to login after users have already registered. it i below the register route because you need to be inside the database before you can login
   const username = req.body.username; //This takes the data of the username input field in the login page
-  const password = req.body.password; //This takes the data of the password input field in the login page
+  const password = md5(req.body.password); //This is to hash the password the user tried to login so that it can be compared with the original hash function
 
   //now to check the database if the username matches the password
   User.findOne({
