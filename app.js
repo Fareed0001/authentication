@@ -3,7 +3,9 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+const bcrypt = require("bcrypt"); // first require bcrypt
+
+const saltRounds = 10; //This tells the amount of salt rounds. The more the salting the more the user pc will work to generate them
 
 const app = express();
 
@@ -44,41 +46,39 @@ app.get("/register", function(req, res) {
 });
 
 app.post("/register", function(req, res) { //This is to recieve the post request from the register form
-  const newUser = new User({ //this follows the user model which follows the user schema
-    email: req.body.username, //this will catch whatever the input with the name username contains
-    password: md5(req.body.password) //this will hash the password using md5
-  });
+  bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+    const newUser = new User({ //this follows the user model which follows the user schema
+      email: req.body.username, //this will catch whatever the input with the name username contains
+      password: hash //this will take the salted hash
+    });
 
-  newUser.save(function(err) { //this will save the new user
-    if (err) { //if there are errors it will log those err
-      console.log(err);
-    } else { //if there are not errors it will render the secrets page
-      res.render("secrets");
-    }
+    newUser.save(function(err) { //this will save the new user
+      if (err) { //if there are errors it will log those err
+        console.log(err);
+      } else { //if there are not errors it will render the secrets page
+        res.render("secrets");
+      }
+    });
+
   });
 });
 
 app.post("/login", function(req, res) { //this route is to login after users have already registered. it i below the register route because you need to be inside the database before you can login
   const username = req.body.username; //This takes the data of the username input field in the login page
-  const password = md5(req.body.password); //This is to hash the password the user tried to login so that it can be compared with the original hash function
-
+  const password = req.body.password; //This will capture the password the user just tried to use to login
   //now to check the database if the username matches the password
   User.findOne({
-    email: username
+    email: username //this will find the document with the user name which was used for the login
   }, function(err, foundUser) { //this is to find one item where the username field matches the email field
     if (err) {
       console.log(err);
     } else {
       if (foundUser) { //if there is a user on our db with the email
-        if (foundUser.password === password) { //if the found users password matches the password inputted
-          //this means that we have that user in our database and the password he typed in matches the one in our database. meaning they are the correct user
-          res.render("secrets"); //since they passed our authentification, they are allowed to enter
-          //NB: if you console.log(foundUser.password); here, you will get to see the password as plain text
-        } else {
-          res.render("home");
-        }
-      } else {
-        res.render("home");
+        bcrypt.compare(password, foundUser.password, function(err, result) { //this compare method compares the password the user just entered in with the hash in our database which is stored in the foundUser.password field (robo3t to confirm)
+          if(result === true) { //if the comparison of the password and saved hash is true, meaning the user got the right password
+            res.render("secrets"); //since they passed our authentification, they are allowed to enter
+          }
+        });
       }
     }
   });
