@@ -40,7 +40,8 @@ const userSchema = new mongoose.Schema({ //This is to change our schema into a m
   email: String,
   password: String,
   googleId: String, //this takes their google id into the schema
-  facebookId: String //this takes their facebook id into the schema
+  facebookId: String, //this takes their facebook id into the schema
+  secret: String
 });
 
 //passport-local-mongoose
@@ -115,7 +116,7 @@ app.get("/", function(req, res) {
 //path for google button. this code was gotten from the passport-google-oauth20 docs (https://www.passportjs.org/packages/passport-google-oauth20/)
 app.get("/auth/google",
   passport.authenticate("google", {
-    scope: ["profile","email"]//this increases the scope to accept email so that we can bypass an error
+    scope: ["profile", "email"] //this increases the scope to accept email so that we can bypass an error
   }) //this will authenticate the user using google strategy. we are telling google that we need the users profile which includes their username and id
   //the code creates a pop-up that allows users sign in into their google accounts
   //it will initiate
@@ -128,7 +129,7 @@ app.get("/auth/google/secrets", //this is the route you provided in the google a
   }), //we authenticate the user locally and if there is any problem we send them back to the login page
   function(req, res) {
     res.redirect("/secrets"); //successful authentication and we send them to the secret route (to app.get /secrets)
-});
+  });
 
 //authenticating requests using facebook. code from (https://www.passportjs.org/packages/passport-facebook/)
 app.get("/auth/facebook",
@@ -140,11 +141,11 @@ app.get("/auth/facebook",
 app.get("/auth/facebook/secrets",
   passport.authenticate("facebook", {
     failureRedirect: "/login"
-  }),//we authenticate the user locally and if there is any problem we send them back to the login page
+  }), //we authenticate the user locally and if there is any problem we send them back to the login page
   function(req, res) {
     // Successful authentication, redirect home.
     res.redirect("/secrets"); //successful authentication and we send them to the secret route (to app.get /secrets)
-});
+  });
 
 app.get("/login", function(req, res) {
   res.render("login");
@@ -156,10 +157,24 @@ app.get("/register", function(req, res) {
   //this will render the register.ejs page
 });
 
-app.get("/secrets", function(req, res) {
+app.get("/secrets", function(req, res) {//we search through the user collecion and check were the secret fiel has a value "https://stackoverflow.com/questions/4057196/how-do-you-query-for-is-not-null-in-mongo"
+  User.find({"secret": {$ne: null}}, function(err, foundUsers) {
+    if(err) {
+      console.log(err);
+    } else {
+      if(foundUsers) {
+        res.render("secrets", {usersWithSecrets: foundUsers}); //this renders the secret.ejs page. then accepts a variable (usersWithSecrets) and passe in the found users as a value for the variable
+        //this usersWithSecrets is what we will use in our secret.ejs page to replace the secret text
+      }
+    }
+  });
+});
+
+//submitting a secret
+app.get("/submit", function(req, res) { //this send a get request to the secret route and allows the page to display
   //here is where we check if the user is authenticated
-  if (req.isAuthenticated()) { //if the user is authenticated we render the secrets page
-    res.render("secrets");
+  if (req.isAuthenticated()) { //if the user is authenticated we render the submit page
+    res.render("submit");
   } else { //else send them to the login page so that they will login
     res.render("login");
   }
@@ -209,7 +224,23 @@ app.post("/login", function(req, res) { //this route is to login after users hav
   });
 });
 
+//post route to save secrets
+app.post("/submit", function(req, res) {
+  const submettedSecret = req.body.secret; //this targets the input field for the submit.ejs page
 
+  User.findById(req.user.id, function(err, foundUser) { //we tap into the user model and find by id the id of the user that triggered the post request
+    if (err) { //if there is an error log it
+      console.log(err);
+    } else {
+      if (foundUser) { //if the user is found in our database (by their id)
+        foundUser.secret = submettedSecret; //we set the found users secret page to be equal to the submitted secret
+        foundUser.save(function() { //save the secret into our database
+          res.redirect("/secrets"); //once the secret is saved, we redirect them to the secret page so hat they can see their own secret
+        });
+      }
+    }
+  });
+});
 
 
 
